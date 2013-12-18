@@ -37,7 +37,7 @@ public class TestIDLProtocolMojo extends AbstractAvroMojoTest {
 
     File outputDir = new File(getBasedir(), "target/test-harness/idl/test");
     String[] generatedFiles = new String[]{"IdlPrivacy.java",
-      "IdlTest.java", "IdlUser.java"};
+      "IdlTest.java", "IdlUser.java", "IdlUserWrapper.java"};
 
     assertFilesExist(outputDir, generatedFiles);
   }

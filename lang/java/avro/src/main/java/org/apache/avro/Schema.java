@@ -458,8 +458,6 @@ public abstract class Schema extends JsonProperties {
       if (space != null) {
         if (!space.equals(names.space()))
           gen.writeStringField("namespace", space);
-        if (names.space() == null)                // default namespace
-          names.space(space);
       } else if (names.space() != null) {         // null within non-null
         gen.writeStringField("namespace", "");
       }
@@ -1232,7 +1230,8 @@ public abstract class Schema extends JsonProperties {
     return jsonNode != null ? jsonNode.getTextValue() : null;
   }
 
-  static JsonNode parseJson(String s) {
+  /** Parses a string as Json. */
+  public static JsonNode parseJson(String s) {
     try {
       return MAPPER.readTree(FACTORY.createJsonParser(new StringReader(s)));
     } catch (JsonParseException e) {

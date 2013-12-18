@@ -17,6 +17,7 @@
  */
 using System;
 using System.IO;
+using System.Linq;
 using Avro.IO;
 using System.Collections.Generic;
 using Avro.Generic;
@@ -271,14 +272,12 @@ namespace Avro.Test.Generic
             "[{\"name\":\"f2\",\"type\":\"int\"}]}",
             new object[] { "f2", 100 }, Description = "Missing fields - union")]
         // TODO: Missing fields - record, enum, map, fixed
-        /*  FIXME: Resolution using defaults don't work yet.
         [TestCase("{\"type\":\"record\",\"name\":\"r\",\"fields\":" +
             "[{\"name\":\"f1\",\"type\":\"boolean\"}]}",
             new object[] { "f1", true },
             "{\"type\":\"record\",\"name\":\"r\",\"fields\":" +
             "[{\"name\":\"f1\",\"type\":\"boolean\"},{\"name\":\"f2\",\"type\":\"string\",\"default\":\"d\"}]}",
             new object[] { "f1", true, "f2", "d" }, Description = "Default field")]
-         */
         public void TestResolution_record(string ws, object[] actual, string rs, object[] expected)
         {
             TestResolution(ws, mkRecord(actual, Schema.Parse(ws) as RecordSchema), rs,
@@ -432,24 +431,63 @@ namespace Avro.Test.Generic
 
         private static S deserialize<S>(Stream ms, Schema ws, Schema rs)
         {
+            long initialPos = ms.Position;
             GenericReader<S> r = new GenericReader<S>(ws, rs);
             Decoder d = new BinaryDecoder(ms);
-            S n = default(S);
-            S output = r.Read(n, d);
+            var items = new List<S>();
+            // validate reading twice to make sure there isn't some state that isn't reset between reads.
+            items.Add( Read( r, d ) );
+            items.Add( Read( r, d ) );
             Assert.AreEqual(ms.Length, ms.Position); // Ensure we have read everything.
-            return output;
+            checkAlternateDeserializers(items, ms, initialPos, ws, rs);
+            return items[0];
         }
 
-        private static void serialize<T>(string writerSchema, T actual, out Stream ms, out Schema ws)
+        private static S Read<S>( DatumReader<S> reader, Decoder d )
         {
-            ms = new MemoryStream();
+            S reuse = default( S );
+            return reader.Read( reuse, d );
+        }
+
+        private static void checkAlternateDeserializers<S>(IEnumerable<S> expectations, Stream input, long startPos, Schema ws, Schema rs)
+        {
+            input.Position = startPos;
+            var reader = new GenericDatumReader<S>(ws, rs);
+            Decoder d = new BinaryDecoder(input);
+            foreach( var expected in expectations )
+            {
+                var read = Read( reader, d );
+                Assert.AreEqual(expected, read);
+            }
+            Assert.AreEqual(input.Length, input.Position); // Ensure we have read everything.
+        }
+
+        private static void serialize<T>(string writerSchema, T actual, out Stream stream, out Schema ws)
+        {
+            var ms = new MemoryStream();
             Encoder e = new BinaryEncoder(ms);
             ws = Schema.Parse(writerSchema);
             GenericWriter<T> w = new GenericWriter<T>(ws);
+            // write twice so we can validate reading twice
+            w.Write(actual, e);
             w.Write(actual, e);
             ms.Flush();
             ms.Position = 0;
+            checkAlternateSerializers(ms.ToArray(), actual, ws);
+            stream = ms;
         }
 
+        private static void checkAlternateSerializers<T>(byte[] expected, T value, Schema ws)
+        {
+            var ms = new MemoryStream();
+            var writer = new GenericDatumWriter<T>(ws);
+            var e = new BinaryEncoder(ms);
+            writer.Write(value, e);
+            writer.Write(value, e);
+            var output = ms.ToArray();
+            
+            Assert.AreEqual(expected.Length, output.Length);
+            Assert.True(expected.SequenceEqual(output));
+        }
     }
 }

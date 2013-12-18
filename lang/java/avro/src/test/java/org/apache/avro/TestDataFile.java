@@ -20,6 +20,7 @@ package org.apache.avro;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.DataFileStream;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.file.SeekableFileInput;
+import org.apache.avro.file.Syncable;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -65,6 +67,9 @@ public class TestDataFile {
     r.add(new Object[] { CodecFactory.deflateCodec(9) });
     r.add(new Object[] { CodecFactory.nullCodec() });
     r.add(new Object[] { CodecFactory.snappyCodec() });
+    r.add(new Object[] { CodecFactory.xzCodec(0) });
+    r.add(new Object[] { CodecFactory.xzCodec(1) });
+    r.add(new Object[] { CodecFactory.xzCodec(6) });
     return r;
   }
 
@@ -79,7 +84,7 @@ public class TestDataFile {
     "{\"type\": \"record\", \"name\": \"Test\", \"fields\": ["
     +"{\"name\":\"stringField\", \"type\":\"string\"},"
     +"{\"name\":\"longField\", \"type\":\"long\"}]}";
-  private static final Schema SCHEMA = Schema.parse(SCHEMA_JSON);
+  private static final Schema SCHEMA = new Schema.Parser().parse(SCHEMA_JSON);
 
   private File makeFile() {
     return new File(DIR, "test-" + codec + ".avro");
@@ -92,6 +97,8 @@ public class TestDataFile {
     testSyncDiscovery();
     testGenericAppend();
     testReadWithHeader();
+    testFSync(false);
+    testFSync(true);
   }
 
   public void testGenericWrite() throws IOException {
@@ -282,6 +289,69 @@ public class TestDataFile {
              new GenericDatumReader<Object>());
   }
 
+  @Test
+  public void testFlushCount() throws IOException {
+    DataFileWriter<Object> writer =
+      new DataFileWriter<Object>(new GenericDatumWriter<Object>());
+    writer.setFlushOnEveryBlock(false);
+    TestingByteArrayOutputStream out = new TestingByteArrayOutputStream();
+    writer.create(SCHEMA, out);
+    int currentCount = 0;
+    int flushCounter = 0;
+    try {
+      for (Object datum : new RandomData(SCHEMA, COUNT, SEED+1)) {
+        currentCount++;
+        writer.append(datum);
+        writer.sync();
+        if (currentCount % 10 == 0) {
+          flushCounter++;
+          writer.flush();
+        }
+      }
+    } finally {
+      writer.close();
+    }
+    System.out.println("Total number of flushes: " + out.flushCount);
+    // Unfortunately, the underlying buffered output stream might flush data
+    // to disk when the buffer becomes full, so the only check we can
+    // accurately do is that each sync did not lead to a flush and that the
+    // file was flushed at least as many times as we called flush. Generally
+    // noticed that out.flushCount is almost always 24 though.
+    Assert.assertTrue(out.flushCount < currentCount &&
+      out.flushCount >= flushCounter);
+  }
+
+  private void testFSync(boolean useFile) throws IOException {
+    DataFileWriter<Object> writer =
+      new DataFileWriter<Object>(new GenericDatumWriter<Object>());
+    writer.setFlushOnEveryBlock(false);
+    TestingByteArrayOutputStream out = new TestingByteArrayOutputStream();
+    if (useFile) {
+      File f = makeFile();
+      SeekableFileInput in = new SeekableFileInput(f);
+      writer.appendTo(in, out);
+    } else {
+      writer.create(SCHEMA, out);
+    }
+    int currentCount = 0;
+    int syncCounter = 0;
+    try {
+      for (Object datum : new RandomData(SCHEMA, COUNT, SEED+1)) {
+        currentCount++;
+        writer.append(datum);
+        if (currentCount % 10 == 0) {
+          writer.fSync();
+          syncCounter++;
+        }
+      }
+    } finally {
+      writer.close();
+    }
+    System.out.println("Total number of syncs: " + out.syncCount);
+    Assert.assertEquals(syncCounter, out.syncCount);
+  }
+
+
   static void readFile(File f, DatumReader<? extends Object> datumReader)
     throws IOException {
     FileReader<? extends Object> reader = DataFileReader.openReader(f, datumReader);
@@ -300,5 +370,22 @@ public class TestDataFile {
     for (int i = 0; i < 4; i++)
       TestDataFile.readFile(input, new GenericDatumReader<Object>(null, projection));
     System.out.println("Time: "+(System.currentTimeMillis()-start));
+  }
+
+  private class TestingByteArrayOutputStream extends ByteArrayOutputStream
+    implements Syncable {
+    private int flushCount = 0;
+    private int syncCount = 0;
+
+    @Override
+    public void flush() throws IOException {
+      super.flush();
+      flushCount++;
+    }
+
+    @Override
+    public void sync() throws IOException {
+      syncCount++;
+    }
   }
 }

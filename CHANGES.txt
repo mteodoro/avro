@@ -6,10 +6,51 @@ Trunk (not yet released)
 
     AVRO-975. C#: Add RPC support. (Mark Lamley via cutting)
 
+    AVRO-1388. Java: Add fsync support to DataFileWriter.
+    (Hari Shreedharan via cutting)
+
+    AVRO-1373. Java: Add support for "xz" compresssion codec, using LZMA2.
+    (Nick White via cutting)
+
+    AVRO-1400. Java: Add AvroDefault reflect annotation to specify
+    default values. (cutting)
+
+    AVRO-1397. Java: Binary fragment tools can now read multiple
+    objects from their input.  (Rob Turner via cutting)
+
+    AVRO-1396. Java: Enable tojson command-line tool to pretty print output.
+    (Rob Turner via cutting)
+
+    AVRO-1409. Java: Add an API for testing schema compatibility.
+    (Christophe Taton via cutting)
+
   IMPROVEMENTS
 
     AVRO-1355. Java: Reject schemas with duplicate field
     names. (Christophe Taton via cutting)
+
+    AVRO-1332. C#: Improve DatumReader performance.
+    (David McIntosh via cutting)
+
+    AVRO-1387. Java: Add DataFileWriter option to inhibit flush per block.
+    (Hari Shreedharan via cutting)
+
+    AVRO-1384. Java: Permit Maven to find imports within project.
+    (Alexandre Normand via cutting)
+
+    AVRO-1397. Java: Improve error message when missing field has no default.
+    (David Carr via cutting)
+
+    AVRO-1398. Increase default sync interval from 16k to 64k.
+    (Rob Turner via cutting)
+
+    AVRO-1234. Java: Permit AvroInputFormat to process files whose
+    names don't end in .avro.  (Dave Beech & Sandy Ryza via cutting)
+
+    AVRO-1344. Java: Expose sync interval configuration in mapreduce API.
+    (Rob Turner via cutting)
+
+    AVRO-1406. C++. GenericRecord (GenericDatum, etc.) doesn't support getters and setters with field name argument. (Iaroslav Zeigerman via thiru)
 
   BUG FIXES
 
@@ -22,6 +63,16 @@ Trunk (not yet released)
 
     AVRO-1366. Fix specification's description of metadata format.
     (cutting)
+
+    AVRO-1377. Java: Fix a bug in Schema#toString() when a namespaced
+    enum or fixed is defined within an un-namespaced record.
+    (Graham Sanderson via cutting)
+
+    AVRO-1399. Java: Fix a test within TestAvroKeyOutputFormat.
+    (Rob Turner via cutting)
+
+    AVRO-1410. Explicit version specification in pom prevents dependency
+    management. (Eric Sammer via tomwhite)
 
 Avro 1.7.5 (12 August 2013)
 
